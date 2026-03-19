@@ -10,7 +10,16 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+const cors = require("cors");
+
+app.use(
+  cors({
+    origin: ["https://web.whatsapp.com", "chrome-extension://*"],
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "x-extension-key", "x-user-id"],
+  }),
+);
+
 app.use(express.json());
 
 // rate limit global
