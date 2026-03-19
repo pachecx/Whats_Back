@@ -1,42 +1,40 @@
-import express from "express";
-import cors from "cors";
-import fetch from "node-fetch";
-import rateLimit from "express-rate-limit";
-import dotenv from "dotenv";
-const usoUsuarios = {};
-const LIMITE_DIARIO = 20;
-
-dotenv.config();
+const express = require("express");
+const cors = require("cors");
+const fetch = require("node-fetch");
+require("dotenv").config();
 
 const app = express();
 
+app.use(express.json());
+
+/* ---------------- CORS ---------------- */
+
 app.use(
   cors({
-    origin: ["https://web.whatsapp.com", "chrome-extension://*"],
-    methods: ["GET", "POST"],
+    origin: "*",
+    methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "x-extension-key", "x-user-id"],
   }),
 );
 
-app.use(express.json());
+/* ---------------- CONFIG ---------------- */
 
-// rate limit global
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-});
+const PORT = process.env.PORT || 3000;
+const EXTENSION_KEY = process.env.EXTENSION_KEY;
 
-app.use("/ia", limiter);
+/* limite por usuario */
 
-// chave da extensão
-const EXTENSION_KEY = "minha_chave_super_secreta_123";
+const usoUsuarios = {};
+const LIMITE_DIARIO = 20;
 
-// rota teste
+/* ---------------- ROTA TESTE ---------------- */
+
 app.get("/", (req, res) => {
   res.send("WhatsApp AI Backend rodando 🚀");
 });
 
-// endpoint IA
+/* ---------------- ROTA IA ---------------- */
+
 app.post("/ia", async (req, res) => {
   try {
     const key = req.headers["x-extension-key"];
@@ -55,7 +53,8 @@ app.post("/ia", async (req, res) => {
       });
     }
 
-    // cria registro se não existir
+    /* cria registro se não existir */
+
     if (!usoUsuarios[userId]) {
       usoUsuarios[userId] = {
         contador: 0,
@@ -65,25 +64,34 @@ app.post("/ia", async (req, res) => {
 
     const hoje = new Date().toDateString();
 
-    // reset diário
+    /* reset diario */
+
     if (usoUsuarios[userId].data !== hoje) {
       usoUsuarios[userId].contador = 0;
       usoUsuarios[userId].data = hoje;
     }
 
-    // verifica limite
+    /* verifica limite */
+
     if (usoUsuarios[userId].contador >= LIMITE_DIARIO) {
       return res.json({
         erro: "Limite diário de IA atingido",
       });
     }
 
-    // incrementa uso
     usoUsuarios[userId].contador++;
 
-    console.log("Usuário:", userId, "uso:", usoUsuarios[userId].contador);
+    console.log("Usuario:", userId, "uso:", usoUsuarios[userId].contador);
 
     const { texto, prompt } = req.body;
+
+    if (!texto || !prompt) {
+      return res.status(400).json({
+        erro: "Texto ou prompt ausente",
+      });
+    }
+
+    /* chamada da IA */
 
     const resposta = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -113,20 +121,26 @@ app.post("/ia", async (req, res) => {
 
     const novoTexto = data?.choices?.[0]?.message?.content;
 
+    if (!novoTexto) {
+      return res.status(500).json({
+        erro: "Erro ao gerar texto",
+      });
+    }
+
     res.json({
       texto: novoTexto,
     });
   } catch (erro) {
-    console.error(erro);
+    console.error("Erro servidor:", erro);
 
     res.status(500).json({
-      erro: "Erro ao gerar texto",
+      erro: "Erro interno",
     });
   }
 });
 
-const PORT = process.env.PORT || 3000;
+/* ---------------- START SERVER ---------------- */
 
 app.listen(PORT, () => {
-  console.log("Servidor rodando");
+  console.log("Servidor rodando na porta", PORT);
 });
