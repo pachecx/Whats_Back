@@ -1,28 +1,35 @@
 const express = require("express");
-const cors = require("cors");
-const fetch = require("node-fetch");
 require("dotenv").config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+/* ---------------- MIDDLEWARE ---------------- */
 
 app.use(express.json());
 
-/* ---------------- CORS ---------------- */
+/* CORS MANUAL (resolve problema com extensão) */
 
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-extension-key", "x-user-id"],
-  }),
-);
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, x-extension-key, x-user-id",
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 /* ---------------- CONFIG ---------------- */
 
-const PORT = process.env.PORT || 3000;
 const EXTENSION_KEY = process.env.EXTENSION_KEY;
 
-/* limite por usuario */
+/* limite por usuário */
 
 const usoUsuarios = {};
 const LIMITE_DIARIO = 20;
@@ -64,7 +71,7 @@ app.post("/ia", async (req, res) => {
 
     const hoje = new Date().toDateString();
 
-    /* reset diario */
+    /* reset diário */
 
     if (usoUsuarios[userId].data !== hoje) {
       usoUsuarios[userId].contador = 0;
@@ -81,7 +88,7 @@ app.post("/ia", async (req, res) => {
 
     usoUsuarios[userId].contador++;
 
-    console.log("Usuario:", userId, "uso:", usoUsuarios[userId].contador);
+    console.log("Usuário:", userId, "uso:", usoUsuarios[userId].contador);
 
     const { texto, prompt } = req.body;
 
@@ -134,7 +141,7 @@ app.post("/ia", async (req, res) => {
     console.error("Erro servidor:", erro);
 
     res.status(500).json({
-      erro: "Erro interno",
+      erro: "Erro interno do servidor",
     });
   }
 });
