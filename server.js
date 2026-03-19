@@ -40,8 +40,15 @@ app.post("/ia", async (req, res) => {
     const key = req.headers["x-extension-key"];
 
     if (key !== EXTENSION_KEY) {
+      // O servidor agora vai "dedurar" os valores no console dele e na resposta!
+      console.log("❌ ERRO DE CHAVE!");
+      console.log("Recebi da extensão:", key);
+      console.log("Esperava do Railway:", EXTENSION_KEY);
+
       return res.status(403).json({
         erro: "Acesso não autorizado",
+        debug_recebido: key || "NADA",
+        debug_esperado: EXTENSION_KEY || "UNDEFINED"
       });
     }
 
