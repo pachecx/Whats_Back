@@ -1,6 +1,5 @@
 const express = require("express");
 const cors = require("cors");
-const fetch = require("node-fetch");
 require("dotenv").config();
 
 const app = express();
@@ -48,7 +47,7 @@ app.post("/ia", async (req, res) => {
       return res.status(403).json({
         erro: "Acesso não autorizado",
         debug_recebido: key || "NADA",
-        debug_esperado: EXTENSION_KEY || "UNDEFINED"
+        debug_esperado: EXTENSION_KEY || "UNDEFINED",
       });
     }
 
