@@ -39,11 +39,6 @@ app.post("/ia", async (req, res) => {
     const key = req.headers["x-extension-key"];
 
     if (key !== EXTENSION_KEY) {
-      // O servidor agora vai "dedurar" os valores no console dele e na resposta!
-      console.log("❌ ERRO DE CHAVE!");
-      console.log("Recebi da extensão:", key);
-      console.log("Esperava do Railway:", EXTENSION_KEY);
-
       return res.status(403).json({
         erro: "Acesso não autorizado",
         debug_recebido: key || "NADA",
@@ -89,6 +84,7 @@ app.post("/ia", async (req, res) => {
 
     console.log("Usuario:", userId, "uso:", usoUsuarios[userId].contador);
 
+    // No seu frontend, 'prompt' provavelmente é a instrução de tom (ex: "Torne formal")
     const { texto, prompt } = req.body;
 
     if (!texto || !prompt) {
@@ -97,7 +93,7 @@ app.post("/ia", async (req, res) => {
       });
     }
 
-    /* chamada da IA */
+    /* chamada da IA - AGORA COM O PROMPT BLINDADO E TEMPERATURA */
 
     const resposta = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -109,14 +105,21 @@ app.post("/ia", async (req, res) => {
         },
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
+          temperature: 0.3, // <-- ADICIONADO: Reduz a criatividade excessiva (alucinações)
           messages: [
             {
               role: "system",
-              content: prompt,
+              // <-- ADICIONADO: Regras absolutas inquebráveis
+              content: `Você é um assistente de escrita especializado em formatar mensagens para o WhatsApp. 
+              Você deve obedecer a estas regras ABSOLUTAS:
+              1. Retorne EXATAMENTE e APENAS o texto reescrito. NUNCA use aspas no início ou fim, e NUNCA adicione frases de introdução como "Aqui está a mensagem".
+              2. Jamais invente fatos, desculpas ou informações que não estavam no rascunho original. Mantenha o significado idêntico.
+              3. Responda estritamente em Português do Brasil (PT-BR).`,
             },
             {
               role: "user",
-              content: texto,
+              // <-- ADICIONADO: Junta a instrução (prompt do front) com o texto do usuário
+              content: `Instrução: ${prompt}\n\nRascunho original: "${texto}"`,
             },
           ],
         }),
@@ -125,7 +128,7 @@ app.post("/ia", async (req, res) => {
 
     const data = await resposta.json();
 
-    const novoTexto = data?.choices?.[0]?.message?.content;
+    const novoTexto = data?.choices?.[0]?.message?.content?.trim(); // O .trim() remove espaços em branco extras
 
     if (!novoTexto) {
       return res.status(500).json({
