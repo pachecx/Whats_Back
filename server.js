@@ -109,17 +109,18 @@ app.post("/ia", async (req, res) => {
           messages: [
             {
               role: "system",
-              // <-- ADICIONADO: Regras absolutas inquebráveis
-              content: `Você é um assistente de escrita especializado em formatar mensagens para o WhatsApp. 
-              Você deve obedecer a estas regras ABSOLUTAS:
-              1. Retorne EXATAMENTE e APENAS o texto reescrito. NUNCA use aspas no início ou fim, e NUNCA adicione frases de introdução como "Aqui está a mensagem".
-              2. Jamais invente fatos, desculpas ou informações que não estavam no rascunho original. Mantenha o significado idêntico.
-              3. Responda estritamente em Português do Brasil (PT-BR).`,
+              content: `Você é um reescritor de textos cirúrgico para WhatsApp. Sua ÚNICA função é ajustar a gramática e a formalidade solicitada.
+
+              REGRAS ABSOLUTAS (O não cumprimento resultará em falha):
+              1. PRESERVAÇÃO ESTRITA DO SENTIDO: O texto final DEVE ter exatamente o mesmo significado, a mesma intenção e a mesma urgência do original. 
+              2. PROIBIDO INVENTAR (ALUCINAÇÃO ZERO): NÃO adicione justificativas, fatos, nomes, locais ou prazos que não existem no original. Exemplo: se o original é "vou atrasar 10 min", NÃO escreva "vou atrasar 10 min por causa do trânsito".
+              3. PROIBIDO CORTAR: Não omita nenhuma informação, pergunta ou dado do texto original.
+              4. SAÍDA DIRETA: Retorne APENAS a mensagem pronta para envio. NENHUMA introdução ("Aqui está"), NENHUMA conclusão, NENHUMA aspa envolvendo o texto.
+              5. IDIOMA: Estritamente Português do Brasil (PT-BR), mantendo um tamanho adequado para mensagens instantâneas.`,
             },
             {
               role: "user",
-              // <-- ADICIONADO: Junta a instrução (prompt do front) com o texto do usuário
-              content: `Instrução: ${prompt}\n\nRascunho original: "${texto}"`,
+              content: `Reescreva o texto abaixo adotando um tom: [${prompt}].\n\nTexto original: ${texto}`,
             },
           ],
         }),
