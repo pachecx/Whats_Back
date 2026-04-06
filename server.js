@@ -116,7 +116,7 @@ app.post("/ia", async (req, res) => {
               2. PROIBIDO INVENTAR (ALUCINAÇÃO ZERO): NÃO adicione justificativas, fatos, nomes, locais ou prazos que não existem no original. Exemplo: se o original é "vou atrasar 10 min", NÃO escreva "vou atrasar 10 min por causa do trânsito".
               3. PROIBIDO CORTAR: Não omita nenhuma informação, pergunta ou dado do texto original.
               4. SAÍDA DIRETA: Retorne APENAS a mensagem pronta para envio. NENHUMA introdução ("Aqui está"), NENHUMA conclusão, NENHUMA aspa envolvendo o texto.
-              5. IDIOMA: Estritamente Português do Brasil (PT-BR), mantendo um tamanho adequado para mensagens instantâneas.`,
+              5. NATURALIDADE E IDIOMA: Responda estritamente em Português do Brasil (PT-BR). O texto DEVE soar extremamente natural, fluido e humano. Evite construções robóticas ou literais (ex: prefira "Por favor, conduzam a reunião" ao invés de estruturas engessadas).`,
             },
             {
               role: "user",
