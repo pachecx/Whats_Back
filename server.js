@@ -93,6 +93,13 @@ app.post("/ia", async (req, res) => {
       });
     }
 
+    /* --- NOVA TRAVA DE SEGURANÇA (O ESCUDO) --- */
+    if (texto.length > 4000) {
+      return res.status(400).json({
+        erro: "O texto é muito longo. O limite é de 4000 caracteres.",
+      });
+    }
+
     /* chamada da IA - AGORA COM O PROMPT BLINDADO E TEMPERATURA */
 
     const resposta = await fetch(
