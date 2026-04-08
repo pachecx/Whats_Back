@@ -24,7 +24,7 @@ const EXTENSION_KEY = process.env.EXTENSION_KEY;
 /* limite por usuario */
 
 const usoUsuarios = {};
-const LIMITE_DIARIO = 20;
+const LIMITE_DIARIO = 50;
 
 /* ---------------- ROTA TESTE ---------------- */
 
