@@ -169,9 +169,14 @@ app.post("/ia", async (req, res) => {
   }
 });
 
-/* ---------------- START SERVER ---------------- */
+/* ---------------- START SERVER / VERCEL EXPORT ---------------- */
 
-app.listen(PORT, () => {
-  console.log("Servidor rodando na porta", PORT);
-});
-// teste
+// Se estiver rodando no seu computador (local), ele usa a porta normalmente
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log("Servidor rodando localmente na porta", PORT);
+  });
+}
+
+// O Segredo da Vercel: Exportar o app como um módulo serverless
+module.exports = app;
