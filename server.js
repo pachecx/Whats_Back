@@ -1,39 +1,42 @@
 const express = require("express");
-const cors = require("cors");
 require("dotenv").config();
 
 const app = express();
 
 app.use(express.json());
 
-/* ---------------- CORS ---------------- */
+/* ---------------- CORS MANUAL (VERCEL FIX) ---------------- */
+app.use((req, res, next) => {
+  // Diz para o navegador: "Sim, eu aceito o WhatsApp (ou qualquer outro site)"
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, x-extension-key, x-user-id",
+  );
 
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-extension-key", "x-user-id"],
-  }),
-);
+  // Se for a requisição fantasma (preflight/OPTIONS), devolve sucesso imediatamente
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  next();
+});
 
 /* ---------------- CONFIG ---------------- */
-
 const PORT = process.env.PORT || 3000;
 const EXTENSION_KEY = process.env.EXTENSION_KEY;
 
 /* limite por usuario */
-
 const usoUsuarios = {};
-const LIMITE_DIARIO = 50;
+const LIMITE_DIARIO = 50; // Atualizado para 50 usos
 
 /* ---------------- ROTA TESTE ---------------- */
-
 app.get("/", (req, res) => {
-  res.send("WhatsApp AI Backend rodando 🚀");
+  res.send("WhatsApp AI Backend rodando na Vercel 🚀");
 });
 
 /* ---------------- ROTA IA ---------------- */
-
 app.post("/ia", async (req, res) => {
   try {
     const key = req.headers["x-extension-key"];
@@ -55,7 +58,6 @@ app.post("/ia", async (req, res) => {
     }
 
     /* cria registro se não existir */
-
     if (!usoUsuarios[userId]) {
       usoUsuarios[userId] = {
         contador: 0,
@@ -66,14 +68,12 @@ app.post("/ia", async (req, res) => {
     const hoje = new Date().toDateString();
 
     /* reset diario */
-
     if (usoUsuarios[userId].data !== hoje) {
       usoUsuarios[userId].contador = 0;
       usoUsuarios[userId].data = hoje;
     }
 
     /* verifica limite */
-
     if (usoUsuarios[userId].contador >= LIMITE_DIARIO) {
       return res.json({
         erro: "Limite diário de IA atingido",
@@ -81,10 +81,8 @@ app.post("/ia", async (req, res) => {
     }
 
     usoUsuarios[userId].contador++;
-
     console.log("Usuario:", userId, "uso:", usoUsuarios[userId].contador);
 
-    // No seu frontend, 'prompt' provavelmente é a instrução de tom (ex: "Torne formal")
     const { texto, prompt } = req.body;
 
     if (!texto || !prompt) {
@@ -100,8 +98,7 @@ app.post("/ia", async (req, res) => {
       });
     }
 
-    /* chamada da IA - AGORA COM O PROMPT BLINDADO E TEMPERATURA */
-
+    /* chamada da IA - AGORA COM O MODELO 70B E PROMPT BLINDADO */
     const resposta = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -111,32 +108,32 @@ app.post("/ia", async (req, res) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          temperature: 0.3, // <-- ADICIONADO: Reduz a criatividade excessiva (alucinações)
+          model: "llama-3.3-70b-versatile", // Motor mais potente
+          temperature: 0.3,
           messages: [
             {
               role: "system",
               content: `Você é um reescritor de textos cirúrgico para WhatsApp. Sua ÚNICA função é ajustar a gramática e a formalidade solicitada.
 
-              REGRAS ABSOLUTAS:
-              1. PRESERVAÇÃO ESTRITA DO SENTIDO: O texto final DEVE ter exatamente o mesmo significado, a mesma intenção e a mesma urgência do original. 
-              2. PROIBIDO INVENTAR (ALUCINAÇÃO ZERO): NÃO adicione justificativas, fatos, nomes, locais ou prazos que não existem no original. 
-              3. PROIBIDO CORTAR: Não omita nenhuma informação, pergunta ou dado do texto original.
-              4. SAÍDA DIRETA: Retorne APENAS a mensagem pronta para envio. NENHUMA introdução ("Aqui está"), NENHUMA conclusão, NENHUMA aspa envolvendo o texto.
-              5. NATURALIDADE E IDIOMA: Responda estritamente em Português do Brasil (PT-BR), soando fluido e humano, sem ser robótico.
+REGRAS ABSOLUTAS:
+1. PRESERVAÇÃO ESTRITA DO SENTIDO: O texto final DEVE ter exatamente o mesmo significado, a mesma intenção e a mesma urgência do original. 
+2. PROIBIDO INVENTAR (ALUCINAÇÃO ZERO): NÃO adicione justificativas, fatos, nomes, locais ou prazos que não existem no original. 
+3. PROIBIDO CORTAR: Não omita nenhuma informação, pergunta ou dado do texto original.
+4. SAÍDA DIRETA: Retorne APENAS a mensagem pronta para envio. NENHUMA introdução ("Aqui está"), NENHUMA conclusão, NENHUMA aspa envolvendo o texto.
+5. NATURALIDADE E IDIOMA: Responda estritamente em Português do Brasil (PT-BR), soando fluido e humano, sem ser robótico.
 
-              EXEMPLOS DE COMPORTAMENTO IDEAL:
-              Original: "mano não vai dar pra entregar o relatorio hoje, o pc deu pau e perdi tudo, to tentando recuperar mas ta osso. avisa o cliente ai que amanha eu mando blz"
-              Tom: Formal
-              Resposta: "Infelizmente, não conseguirei entregar o relatório hoje devido a um problema no computador. Estou tentando recuperar os dados e enviarei amanhã. Por favor, avise o cliente."
+EXEMPLOS DE COMPORTAMENTO IDEAL:
+Original: "mano não vai dar pra entregar o relatorio hoje, o pc deu pau e perdi tudo, to tentando recuperar mas ta osso. avisa o cliente ai que amanha eu mando blz"
+Tom: Formal
+Resposta: "Infelizmente, não conseguirei entregar o relatório hoje devido a um problema no computador. Estou tentando recuperar os dados e enviarei amanhã. Por favor, avise o cliente."
 
-              Original: "chefe, o pneu furou aqui na marginal, to esperando o guincho, atraso de 2h."
-              Tom: Profissional
-              Resposta: "Bom dia. Tive um imprevisto com o pneu do carro e estou aguardando o guincho. Chegarei com cerca de duas horas de atraso."
+Original: "chefe, o pneu furou aqui na marginal, to esperando o guincho, atraso de 2h."
+Tom: Profissional
+Resposta: "Bom dia. Tive um imprevisto com o pneu do carro e estou aguardando o guincho. Chegarei com cerca de duas horas de atraso."
 
-              Original: "cara manda logo esse contrato assinado que o financeiro ta buzinando no meu ouvido."
-              Tom: Educado
-              Resposta: "Você poderia me enviar o contrato assinado assim que possível? O setor financeiro está me cobrando um posicionamento."`,
+Original: "cara manda logo esse contrato assinado que o financeiro ta buzinando no meu ouvido."
+Tom: Educado
+Resposta: "Você poderia me enviar o contrato assinado assim que possível? O setor financeiro está me cobrando um posicionamento."`,
             },
             {
               role: "user",
@@ -148,8 +145,7 @@ app.post("/ia", async (req, res) => {
     );
 
     const data = await resposta.json();
-
-    const novoTexto = data?.choices?.[0]?.message?.content?.trim(); // O .trim() remove espaços em branco extras
+    const novoTexto = data?.choices?.[0]?.message?.content?.trim();
 
     if (!novoTexto) {
       return res.status(500).json({
@@ -162,7 +158,6 @@ app.post("/ia", async (req, res) => {
     });
   } catch (erro) {
     console.error("Erro servidor:", erro);
-
     res.status(500).json({
       erro: "Erro interno",
     });
