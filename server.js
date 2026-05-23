@@ -7,15 +7,13 @@ app.use(express.json());
 
 /* ---------------- CORS MANUAL (VERCEL FIX) ---------------- */
 app.use((req, res, next) => {
-  // Diz para o navegador: "Sim, eu aceito o WhatsApp (ou qualquer outro site)"
+  // Permite o acesso do WhatsApp, Gmail ou qualquer outra origem
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, x-extension-key, x-user-id",
-  );
+  // CRUCIAL: Adicionado "Authorization" para permitir o envio do Token do Google
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  // Se for a requisição fantasma (preflight/OPTIONS), devolve sucesso imediatamente
+  // Responde imediatamente às requisições de preflight (OPTIONS)
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -25,39 +23,41 @@ app.use((req, res, next) => {
 
 /* ---------------- CONFIG ---------------- */
 const PORT = process.env.PORT || 3000;
-const EXTENSION_KEY = process.env.EXTENSION_KEY;
 
-/* limite por usuario */
+/* Controlo de limites por e-mail */
 const usoUsuarios = {};
-const LIMITE_DIARIO = 50; // Atualizado para 50 usos
+const LIMITE_DIARIO = 50; 
 
-/* ---------------- ROTA TESTE ---------------- */
+/* ---------------- ROTA TESTE (HEALTH CHECK) ---------------- */
 app.get("/", (req, res) => {
-  res.send("WhatsApp AI Backend rodando na Vercel 🚀");
+  res.send("WhatsApp & Gmail AI Backend rodando na Vercel com OAuth 2.0! 🚀");
 });
 
 /* ---------------- ROTA IA ---------------- */
 app.post("/ia", async (req, res) => {
   try {
-    const key = req.headers["x-extension-key"];
+    // 1. Extrai o Token do cabeçalho Authorization (Formato: Bearer XXXXXXX)
+    const authHeader = req.headers["authorization"];
+    const token = authHeader ? authHeader.split("Bearer ")[1] : null;
 
-    if (key !== EXTENSION_KEY) {
-      return res.status(403).json({
-        erro: "Acesso não autorizado",
-        debug_recebido: key || "NADA",
-        debug_esperado: EXTENSION_KEY || "UNDEFINED",
-      });
+    if (!token) {
+      return res.status(401).json({ erro: "Acesso negado. Token não fornecido." });
     }
 
-    const userId = req.headers["x-user-id"];
+    // 2. Valida o Token criptográfico diretamente com a API do Google
+    const googleVerify = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${token}`);
+    const googleData = await googleVerify.json();
 
-    if (!userId) {
-      return res.status(400).json({
-        erro: "Usuário não identificado",
-      });
+    // Se o Google disser que o token é inválido ou expirou
+    if (googleData.error) {
+      return res.status(401).json({ erro: "Sessão expirada ou inválida. Faça login novamente na extensão." });
     }
 
-    /* cria registro se não existir */
+    // 3. Sucesso! O ID do utilizador passa a ser o e-mail real e verificado
+    const userId = googleData.email;
+    console.log(`Requisição autorizada para o utilizador: ${userId}`);
+
+    /* Cria o registo do utilizador no histórico diário se não existir */
     if (!usoUsuarios[userId]) {
       usoUsuarios[userId] = {
         contador: 0,
@@ -67,38 +67,38 @@ app.post("/ia", async (req, res) => {
 
     const hoje = new Date().toDateString();
 
-    /* reset diario */
+    /* Reinicia o contador se mudou o dia */
     if (usoUsuarios[userId].data !== hoje) {
       usoUsuarios[userId].contador = 0;
       usoUsuarios[userId].data = hoje;
     }
 
-    /* verifica limite */
+    /* Verifica se atingiu a cota de 50 mensagens */
     if (usoUsuarios[userId].contador >= LIMITE_DIARIO) {
-      return res.json({
-        erro: "Limite diário de IA atingido",
+      return res.status(429).json({
+        erro: "Limite diário de 50 mensagens atingido. Atualize para o plano PRO.",
       });
     }
-
-    usoUsuarios[userId].contador++;
-    console.log("Usuario:", userId, "uso:", usoUsuarios[userId].contador);
 
     const { texto, prompt } = req.body;
 
     if (!texto || !prompt) {
       return res.status(400).json({
-        erro: "Texto ou prompt ausente",
+        erro: "Texto ou prompt ausente.",
       });
     }
 
-    /* --- NOVA TRAVA DE SEGURANÇA (O ESCUDO) --- */
+    /* Proteção contra abuso de tamanho de texto */
     if (texto.length > 4000) {
       return res.status(400).json({
-        erro: "O texto é muito longo. O limite é de 4000 caracteres.",
+        erro: "O texto excede o limite seguro de 4000 caracteres."
       });
     }
 
-    /* chamada da IA - AGORA COM O MODELO 70B E PROMPT BLINDADO */
+    // Incrementa o uso após passar todas as validações de segurança
+    usoUsuarios[userId].contador++;
+
+    /* Chamada ao motor Llama 3.3 70B na Groq */
     const resposta = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -108,12 +108,12 @@ app.post("/ia", async (req, res) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile", // Motor mais potente
+          model: "llama-3.3-70b-versatile",
           temperature: 0.3,
           messages: [
             {
               role: "system",
-              content: `Você é um reescritor de textos cirúrgico para WhatsApp. Sua ÚNICA função é ajustar a gramática e a formalidade solicitada.
+              content: `Você é um reescritor de textos cirúrgico para WhatsApp e Gmail. Sua ÚNICA função é ajustar a gramática e a formalidade solicitada.
 
 REGRAS ABSOLUTAS:
 1. PRESERVAÇÃO ESTRITA DO SENTIDO: O texto final DEVE ter exatamente o mesmo significado, a mesma intenção e a mesma urgência do original. 
@@ -125,15 +125,7 @@ REGRAS ABSOLUTAS:
 EXEMPLOS DE COMPORTAMENTO IDEAL:
 Original: "mano não vai dar pra entregar o relatorio hoje, o pc deu pau e perdi tudo, to tentando recuperar mas ta osso. avisa o cliente ai que amanha eu mando blz"
 Tom: Formal
-Resposta: "Infelizmente, não conseguirei entregar o relatório hoje devido a um problema no computador. Estou tentando recuperar os dados e enviarei amanhã. Por favor, avise o cliente."
-
-Original: "chefe, o pneu furou aqui na marginal, to esperando o guincho, atraso de 2h."
-Tom: Profissional
-Resposta: "Bom dia. Tive um imprevisto com o pneu do carro e estou aguardando o guincho. Chegarei com cerca de duas horas de atraso."
-
-Original: "cara manda logo esse contrato assinado que o financeiro ta buzinando no meu ouvido."
-Tom: Educado
-Resposta: "Você poderia me enviar o contrato assinado assim que possível? O setor financeiro está me cobrando um posicionamento."`,
+Resposta: "Infelizmente, não conseguirei entregar o relatório hoje devido a um problema no computador. Estou tentando recuperar os dados e enviarei amanhã. Por favor, avise o cliente."`,
             },
             {
               role: "user",
@@ -149,29 +141,27 @@ Resposta: "Você poderia me enviar o contrato assinado assim que possível? O se
 
     if (!novoTexto) {
       return res.status(500).json({
-        erro: "Erro ao gerar texto",
+        erro: "Falha ao processar a resposta da inteligência artificial.",
       });
     }
 
     res.json({
       texto: novoTexto,
     });
+
   } catch (erro) {
-    console.error("Erro servidor:", erro);
+    console.error("Erro crítico no servidor:", erro);
     res.status(500).json({
-      erro: "Erro interno",
+      erro: "Erro interno no servidor de IA.",
     });
   }
 });
 
 /* ---------------- START SERVER / VERCEL EXPORT ---------------- */
-
-// Se estiver rodando no seu computador (local), ele usa a porta normalmente
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
-    console.log("Servidor rodando localmente na porta", PORT);
+    console.log("Servidor local rodando na porta", PORT);
   });
 }
 
-// O Segredo da Vercel: Exportar o app como um módulo serverless
 module.exports = app;
