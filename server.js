@@ -16,46 +16,50 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 /* ====================================================================
    ROTA DO WEBHOOK DO STRIPE (TEM QUE VIR ANTES DO EXPRESS.JSON)
 ==================================================================== */
-app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  let event;
+app.post(
+  "/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    let event;
 
-  try {
-    // Valida se a mensagem realmente veio do Stripe
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    console.error("⚠️ Erro na assinatura do Webhook:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  // Se o pagamento foi processado com sucesso
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-    const emailPagador = session.customer_email;
-
-    console.log(`💰 Pagamento recebido de: ${emailPagador}`);
-
-    // Atualiza o banco de dados: is_pro = true
-    const { error } = await supabase
-      .from("controle_uso")
-      .update({ is_pro: true })
-      .eq("email", emailPagador);
-
-    if (error) {
-      console.error("Erro ao atualizar Supabase no Webhook:", error);
-      return res.status(500).send("Erro no banco de dados.");
+    try {
+      // Valida se a mensagem realmente veio do Stripe
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET,
+      );
+    } catch (err) {
+      console.error("⚠️ Erro na assinatura do Webhook:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-    
-    console.log(`✅ Usuário ${emailPagador} promovido para PRO com sucesso!`);
-  }
 
-  // Responde 200 pro Stripe parar de tentar enviar o aviso
-  res.json({ received: true });
-});
+    // Se o pagamento foi processado com sucesso
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const emailPagador = session.customer_email;
+
+      console.log(`💰 Pagamento recebido de: ${emailPagador}`);
+
+      // Atualiza o banco de dados: is_pro = true
+      const { error } = await supabase
+        .from("controle_uso")
+        .update({ is_pro: true })
+        .eq("email", emailPagador);
+
+      if (error) {
+        console.error("Erro ao atualizar Supabase no Webhook:", error);
+        return res.status(500).send("Erro no banco de dados.");
+      }
+
+      console.log(`✅ Usuário ${emailPagador} promovido para PRO com sucesso!`);
+    }
+
+    // Responde 200 pro Stripe parar de tentar enviar o aviso
+    res.json({ received: true });
+  },
+);
 
 /* ---------------- MIDDLEWARES NORMAIS (JSON E CORS) ---------------- */
 app.use(express.json());
@@ -84,13 +88,16 @@ app.post("/ia", async (req, res) => {
 
     if (!token) return res.status(401).json({ erro: "Acesso negado." });
 
-    const googleVerify = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${token}`);
+    const googleVerify = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${token}`,
+    );
     const googleData = await googleVerify.json();
 
-    if (googleData.error) return res.status(401).json({ erro: "Sessão expirada." });
+    if (googleData.error)
+      return res.status(401).json({ erro: "Sessão expirada." });
 
     const userId = googleData.email;
-    const hojeStr = new Date().toISOString().split('T')[0];
+    const hojeStr = new Date().toISOString().split("T")[0];
 
     let { data: registo, error: erroConsulta } = await supabase
       .from("controle_uso")
@@ -103,43 +110,66 @@ app.post("/ia", async (req, res) => {
     }
 
     if (!registo) {
-      await supabase.from("controle_uso").insert([{ email: userId, contador: 1, ultima_data: hojeStr, is_pro: false }]);
+      await supabase
+        .from("controle_uso")
+        .insert([
+          { email: userId, contador: 1, ultima_data: hojeStr, is_pro: false },
+        ]);
     } else {
       if (!registo.is_pro) {
         if (registo.ultima_data !== hojeStr) {
-          await supabase.from("controle_uso").update({ contador: 1, ultima_data: hojeStr }).eq("email", userId);
+          await supabase
+            .from("controle_uso")
+            .update({ contador: 1, ultima_data: hojeStr })
+            .eq("email", userId);
         } else {
           if (registo.contador >= LIMITE_DIARIO) {
-            return res.status(429).json({ erro: "Limite diário atingido.", precisa_upgrade: true });
+            return res
+              .status(429)
+              .json({ erro: "Limite diário atingido.", precisa_upgrade: true });
           }
-          await supabase.from("controle_uso").update({ contador: registo.contador + 1 }).eq("email", userId);
+          await supabase
+            .from("controle_uso")
+            .update({ contador: registo.contador + 1 })
+            .eq("email", userId);
         }
       }
     }
 
     const { texto, prompt } = req.body;
-    if (!texto || !prompt) return res.status(400).json({ erro: "Faltam dados." });
-    if (texto.length > 4000) return res.status(400).json({ erro: "Texto muito longo." });
+    if (!texto || !prompt)
+      return res.status(400).json({ erro: "Faltam dados." });
+    if (texto.length > 4000)
+      return res.status(400).json({ erro: "Texto muito longo." });
 
-    const respostaGroq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
+    const respostaGroq = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          temperature: 0.3,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Você reescreve textos para WhatsApp. Retorne apenas o resultado final.",
+            },
+            {
+              role: "user",
+              content: `Tom: [${prompt}]. Texto original: ${texto}`,
+            },
+          ],
+        }),
       },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.3,
-        messages: [
-          { role: "system", content: "Você reescreve textos para WhatsApp. Retorne apenas o resultado final." },
-          { role: "user", content: `Tom: [${prompt}]. Texto original: ${texto}` },
-        ],
-      }),
-    });
+    );
 
     const dataGroq = await respostaGroq.json();
     res.json({ texto: dataGroq?.choices?.[0]?.message?.content?.trim() });
-
   } catch (erro) {
     res.status(500).json({ erro: "Erro interno no servidor." });
   }
@@ -153,10 +183,13 @@ app.post("/checkout", async (req, res) => {
 
     if (!token) return res.status(401).json({ erro: "Acesso negado." });
 
-    const googleVerify = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${token}`);
+    const googleVerify = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${token}`,
+    );
     const googleData = await googleVerify.json();
 
-    if (googleData.error) return res.status(401).json({ erro: "Sessão expirada." });
+    if (googleData.error)
+      return res.status(401).json({ erro: "Sessão expirada." });
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -173,8 +206,62 @@ app.post("/checkout", async (req, res) => {
   }
 });
 
+/* ---------------- ROTA STATUS (ALIMENTA O PAINEL REACT) ---------------- */
+app.get("/status", async (req, res) => {
+  try {
+    // 1. Valida o Token do usuário
+    const authHeader = req.headers["authorization"];
+    const token = authHeader ? authHeader.split("Bearer ")[1] : null;
+
+    if (!token) return res.status(401).json({ erro: "Acesso negado." });
+
+    const googleVerify = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${token}`,
+    );
+    const googleData = await googleVerify.json();
+
+    if (googleData.error)
+      return res.status(401).json({ erro: "Sessão expirada." });
+
+    const userId = googleData.email;
+    const hojeStr = new Date().toISOString().split("T")[0];
+
+    // 2. Busca os dados no Supabase
+    let { data: registo, error: erroConsulta } = await supabase
+      .from("controle_uso")
+      .select("*")
+      .eq("email", userId)
+      .single();
+
+    if (erroConsulta && erroConsulta.code !== "PGRST116") {
+      return res.status(500).json({ erro: "Erro ao consultar banco." });
+    }
+
+    // 3. Regras de negócio para a interface
+    if (!registo) {
+      // Se não achou registro, o usuário é novo e tem 0 usos
+      return res.json({ isPro: false, mensagensUsadas: 0 });
+    }
+
+    // Se o dia virou no calendário, o usuário tem 0 usos hoje (mesmo que o banco ainda tenha o número de ontem)
+    let usoHoje = registo.contador;
+    if (registo.ultima_data !== hojeStr) {
+      usoHoje = 0;
+    }
+
+    // 4. Devolve o pacote perfeito para o React
+    res.json({
+      isPro: registo.is_pro || false,
+      mensagensUsadas: usoHoje,
+    });
+  } catch (erro) {
+    console.error("Erro na rota de status:", erro);
+    res.status(500).json({ erro: "Erro interno do servidor." });
+  }
+});
+
 /* ---------------- START SERVER ---------------- */
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => console.log("Servidor rodando na porta", PORT));
 }
 
