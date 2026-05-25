@@ -156,12 +156,16 @@ app.post("/ia", async (req, res) => {
           messages: [
             {
               role: "system",
-              content:
-                "Você reescreve textos para WhatsApp. Retorne apenas o resultado final.",
+              content: `Você é um reescritor de mensagens para WhatsApp. Sua ÚNICA função é adaptar o texto recebido para o tom solicitado.
+              REGRAS ABSOLUTAS:
+              1. NUNCA aja como um assistente virtual. Nunca converse com o usuário.
+              2. NUNCA adicione introduções ou explicações (ex: NUNCA diga "Desculpe", "Aqui está o texto", "Claro").
+              3. Se o texto original for muito curto (ex: "não sei", "ok", "sim"), apenas eleve a frase para o tom solicitado (ex: "não sei" no tom formal vira "Ainda não possuo essa informação no momento.").
+              4. Retorne EXATAMENTE E APENAS a mensagem final reescrita, sem aspas em volta.`,
             },
             {
               role: "user",
-              content: `Tom: [${prompt}]. Texto original: ${texto}`,
+              content: `Reescreva a mensagem abaixo adotando um tom [${prompt}].\n\nMensagem original: "${texto}"`,
             },
           ],
         }),
